@@ -4,6 +4,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import mongoose, { Model } from 'mongoose';
 import { BookService } from './book.service';
 import { Book } from './schemas/book.schema';
+import { CreateBookDto } from './dto/create-book.dto';
+import { User } from 'src/auth/schemas/user.schema';
 
 describe('BookService', () => {
   let bookService: BookService;
@@ -14,8 +16,18 @@ describe('BookService', () => {
     title: 'New Book',
   };
 
+  const mockUser = {
+    _id: '63463406286196cf0ed335f4',
+    name: 'John',
+    email: 'john@gmail.com',
+  };
+
   const mockBookService = {
+    find: jest.fn(),
     findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    findByIdAndDelete: jest.fn(),
+    create: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -81,6 +93,78 @@ describe('BookService', () => {
       );
 
       expect(model.findById).toHaveBeenCalledWith(mockBook._id);
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return an array of books', async () => {
+      const query = { page: '1', keyword: 'test' };
+
+      jest.spyOn(model, 'find').mockImplementation(
+        () =>
+          ({
+            limit: () => ({
+              skip: jest.fn().mockResolvedValue([mockBook]),
+            }),
+          } as any),
+      );
+
+      const result = await bookService.findAll(query);
+
+      expect(model.find).toHaveBeenCalledWith({
+        title: {
+          $regex: query.keyword,
+          $options: 'i',
+        },
+      });
+      expect(result).toEqual([mockBook]);
+    });
+  });
+
+  describe('create', () => {
+    it('should create and return a book', async () => {
+      const newBook = { title: 'New Book 1' };
+
+      jest
+        .spyOn(model, 'create')
+        .mockImplementation(() => Promise.resolve(mockBook));
+
+      const result = await bookService.create(
+        newBook as CreateBookDto,
+        mockUser as User,
+      );
+
+      expect(result).toEqual(mockBook);
+    });
+  });
+
+  describe('updateById', () => {
+    it('should update and return a book', async () => {
+      const updatedBook = { ...mockBook, title: 'Updated name' };
+      const book = { title: 'Updated name' };
+
+      jest.spyOn(model, 'findByIdAndUpdate').mockResolvedValue(updatedBook);
+
+      const result = await bookService.updateById(mockBook._id, book as any);
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(mockBook._id, book, {
+        new: true,
+        runValidators: true,
+      });
+
+      expect(result.title).toEqual(book.title);
+    });
+  });
+
+  describe('deleteById', () => {
+    it('should delete and return a book', async () => {
+      jest.spyOn(model, 'findByIdAndDelete').mockResolvedValue(mockBook);
+
+      const result = await bookService.deleteById(mockBook._id);
+
+      expect(model.findByIdAndDelete).toHaveBeenCalledWith(mockBook._id);
+
+      expect(result).toEqual(mockBook);
     });
   });
 });
